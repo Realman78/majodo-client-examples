@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebSocket Client</title>
+</head>
+<body>
+    <div>
+        <button id="createButton">Create room</button>
+        <div id="roomsContainer"></div>
+        <input type="text" id="inp" />
+        <div id="contentContainer"></div>
+    </div>
+
+    <script>
+        const contentContainer = document.getElementById("contentContainer");
+        const inp = document.getElementById("inp");
+
+        // Initialize WebSocket connection
+        const ws = new WebSocket("ws://127.0.0.1:3000");
+
+        ws.onopen = () => {
+            sendData("Hello from the browser!");
+        };
+
+        ws.onmessage = handleWsMessage;
+
+        function handleWsMessage(event) {
+            const data = JSON.parse(event.data);
+            console.log(`Received: `, data);
+            contentContainer.innerHTML += `<p>${data.content}</p>`;
+            if (data.type === 3) {
+                console.log("joined");
+            }
+        }
+
+
+        // BROADCAST A MESSAGE TO THE ROOM
+        inp.addEventListener("keydown", handleInputKeydown);
+
+        function handleInputKeydown(event) {
+            if (event.key !== "Enter") return;
+
+            event.preventDefault();
+            const value = inp.value.trim();
+            if (value) {
+                sendData(value);
+                inp.value = "";
+            }
+        }
+
+        document.getElementById("createButton").addEventListener("click", createRoom);
+
+        async function createRoom() {
+            // FIRST: SEND A REQUEST TO INITALIZE ROOM CREATION
+            const res = await fetch("http://127.0.0.1:3000/api/rooms/create", { method: "POST" });
+            const data = await res.json();
+            if (res.status !== 200) return alert("Something went wrong.");
+            // RESPONSE RETURNS TOKEN WHICH YOU ARE SENDING USING WEBSOCKETS+PROTOBUF BELOW (THIRD ARROW ON DIAGRAM)
+            sendData(data.data.token);
+            // IF THIS SUCCEEDS, YOU ARE IN A ROOM NOW!
+        }
+
+
+        // EVERY 5 SECONDS, UPDATE THE ROOM LIST
+        setInterval(updateRoomList, 5000);
+
+        async function updateRoomList() {
+            const res = await fetch("http://127.0.0.1:3000/api/rooms");
+            const data = await res.json();
+
+            const roomsContainer = document.getElementById("roomsContainer");
+            if (Array.isArray(data.data)) {
+                roomsContainer.innerHTML = data.data.map(room => `<button onclick="joinRoom(event)">${room}</button>`).join('');
+            } else {
+                roomsContainer.innerHTML = "";
+            }
+        }
+
+        async function joinRoom(event) {
+            // SENDING A REQUEST TO JOIN, ROOM NAME IS IN BUTTON
+            const roomName = event.target.innerText;
+            const res = await fetch("http://127.0.0.1:3000/api/rooms/join", {
+                method: "POST",
+                body: JSON.stringify({ roomName }),
+                headers: { "content-type": "application/json" },
+            });
+
+            const data = await res.json();
+            if (res.status !== 200) return alert("Something went wrong.");
+            // RESPONSE RETURNS TOKEN WHICH YOU ARE SENDING USING WEBSOCKETS+PROTOBUF BELOW
+            sendData(data.data.token);
+            // IF THIS SUCCEEDS, YOU ARE IN A ROOM NOW!
+        }
+
+        function sendData(content) {
+            ws.send(content);
+        }
+    </script>
+</body>
+</html>

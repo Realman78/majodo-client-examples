@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+enum Type {
+  SERVER_INFO = 0;
+  SERVER_ERROR = 1;
+  ROOM = 2;
+  JOIN_ROOM = 3;
+}
+
+message Message {
+  string content = 1;
+  Type type = 2;
+  string uid = 3;
+  string roomId = 4;
+}
